@@ -43,67 +43,100 @@ const simOuNao = (valor) =>
 
 const juntar = (partes, separador) => partes.filter(Boolean).join(separador)
 
-function Empresa({ cnpj, empresa }) {
-  const cnae = juntar([formatarCnae(empresa.cnae_fiscal), empresa.cnae_fiscal_descricao], ' – ')
-  const endereco = juntar(
-    [
-      juntar([empresa.descricao_tipo_de_logradouro, empresa.logradouro], ' '),
-      empresa.numero,
-      empresa.complemento,
-      empresa.bairro,
-      juntar([empresa.municipio, empresa.uf], '/'),
-      formatarCep(empresa.cep),
-    ],
-    ', ',
+function Campo({ rotulo, children }) {
+  return (
+    <div>
+      <dt>{rotulo}</dt>
+      <dd>{children || NAO_INFORMADO}</dd>
+    </div>
   )
+}
+
+function Grupo({ titulo, className, children }) {
+  return (
+    <section className="cartao">
+      <h3>{titulo}</h3>
+      <dl className={className}>{children}</dl>
+    </section>
+  )
+}
+
+function Opcao({ valor }) {
+  return <span className={`etiqueta ${valor === true ? 'positiva' : ''}`}>{simOuNao(valor)}</span>
+}
+
+function Empresa({ cnpj, empresa }) {
+  const situacao = empresa.descricao_situacao_cadastral
   const socios = empresa.qsa ?? []
 
-  const campos = [
-    ['CNPJ', formatarCnpj(cnpj)],
-    ['Razão social', empresa.razao_social],
-    ['Nome fantasia', empresa.nome_fantasia],
-    ['Situação cadastral', empresa.descricao_situacao_cadastral],
-    ['Data de abertura', formatarData(empresa.data_inicio_atividade)],
-    ['CNAE principal', cnae],
-    ['Endereço', endereco],
-    ['Porte', empresa.porte],
-    ['Optante pelo Simples', simOuNao(empresa.opcao_pelo_simples)],
-    ['Optante pelo MEI', simOuNao(empresa.opcao_pelo_mei)],
-  ]
-
   return (
-    <>
-      <h2>Dados da empresa</h2>
-      <dl>
-        {campos.map(([rotulo, valor]) => (
-          <div key={rotulo}>
-            <dt>{rotulo}</dt>
-            <dd>{valor || NAO_INFORMADO}</dd>
-          </div>
-        ))}
-      </dl>
+    <div className="resultado">
+      <section className="cartao identificacao">
+        <div>
+          <h2>{empresa.razao_social || NAO_INFORMADO}</h2>
+          <p>Nome fantasia: {empresa.nome_fantasia || NAO_INFORMADO}</p>
+          <p>CNPJ: {formatarCnpj(cnpj)}</p>
+        </div>
+        <span className={`etiqueta ${situacao === 'ATIVA' ? 'positiva' : 'negativa'}`}>
+          {situacao || NAO_INFORMADO}
+        </span>
+      </section>
 
-      <h2>Quadro de sócios</h2>
-      {socios.length === 0 ? (
-        <p>Nenhum sócio informado para este CNPJ.</p>
-      ) : (
-        <ul>
-          {socios.map((socio, indice) => (
-            <li key={indice}>
-              <strong>{socio.nome_socio}</strong>
-              <br />
-              {socio.qualificacao_socio || NAO_INFORMADO} · desde{' '}
-              {formatarData(socio.data_entrada_sociedade)}
-            </li>
-          ))}
-        </ul>
-      )}
+      <div className="grade duas">
+        <Grupo titulo="Atividade">
+          <Campo rotulo="Data de abertura">{formatarData(empresa.data_inicio_atividade)}</Campo>
+          <Campo rotulo="CNAE principal">
+            {juntar([formatarCnae(empresa.cnae_fiscal), empresa.cnae_fiscal_descricao], ' – ')}
+          </Campo>
+        </Grupo>
 
-      <small>
+        <Grupo titulo="Regime e porte">
+          <Campo rotulo="Porte">{empresa.porte}</Campo>
+          <Campo rotulo="Optante pelo Simples"><Opcao valor={empresa.opcao_pelo_simples} /></Campo>
+          <Campo rotulo="Optante pelo MEI"><Opcao valor={empresa.opcao_pelo_mei} /></Campo>
+        </Grupo>
+      </div>
+
+      <Grupo titulo="Endereço" className="colunas">
+        <Campo rotulo="Logradouro">
+          {juntar(
+            [juntar([empresa.descricao_tipo_de_logradouro, empresa.logradouro], ' '), empresa.numero],
+            ', ',
+          )}
+        </Campo>
+        <Campo rotulo="Complemento">{empresa.complemento}</Campo>
+        <Campo rotulo="Bairro">{empresa.bairro}</Campo>
+        <Campo rotulo="Município/UF">{juntar([empresa.municipio, empresa.uf], '/')}</Campo>
+        <Campo rotulo="CEP">{formatarCep(empresa.cep)}</Campo>
+      </Grupo>
+
+      <section className="cartao">
+        <h3>Quadro de sócios ({socios.length})</h3>
+        {socios.length === 0 ? (
+          <p>Nenhum sócio informado para este CNPJ.</p>
+        ) : (
+          <ul className="socios">
+            {socios.map((socio, indice) => (
+              <li key={indice}>
+                <span className="inicial" aria-hidden="true">{socio.nome_socio?.[0]}</span>
+                <div>
+                  <strong>{socio.nome_socio}</strong>
+                  <p>
+                    {socio.qualificacao_socio || NAO_INFORMADO} · desde{' '}
+                    {formatarData(socio.data_entrada_sociedade)}
+                  </p>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <p className="nota">
         Dados fornecidos pela BrasilAPI, que podem estar defasados em relação à Receita
         Federal. Para uso oficial, confirme no comprovante emitido pela Receita.
-      </small>
-    </>
+      </p>
+    </div>
   )
 }
 
@@ -114,7 +147,7 @@ export default function Resultado({ cnpj }) {
     consultar(cnpj).then(setResultado)
   }, [cnpj])
 
-  if (!resultado) return <p role="status">Consultando…</p>
-  if (resultado.erro) return <p role="alert">{resultado.erro}</p>
+  if (!resultado) return <p className="carregando" role="status">Consultando…</p>
+  if (resultado.erro) return <p className="aviso-erro" role="alert">{resultado.erro}</p>
   return <Empresa cnpj={cnpj} empresa={resultado.empresa} />
 }
